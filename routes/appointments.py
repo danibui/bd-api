@@ -1,39 +1,24 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from models.appointments import Appointment
-from database import get_db_connection
+from bulk_database.appointments_db_helper import AppointmentsDbHelper
 
 router = APIRouter()
 
 @router.post("/appointments/")
 def create_appointment(appointment: Appointment):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    query = """
-        INSERT INTO appointments (client_id, appointment_date, treatment, doctor_id) 
-        VALUES (%s, %s, %s, %s)
-    """
-    cursor.execute(query, (appointment.client_id, appointment.appointment_date, appointment.treatment, appointment.doctor_id))
-    conn.commit()
-
-    cursor.close()
-    conn.close()
-
-    return {"message": "Appointment created successfully!"}
+    if AppointmentsDbHelper.insert_appointment(appointment):
+        return {"message": "Appointment created successfully!"}, 201
+    else:
+        raise HTTPException(status_code=500, detail="Error creating appointment")
 
 @router.get("/appointments/")
 def get_appointments():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    query = "SELECT * FROM appointments"
-    cursor.execute(query)
-    result = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
-
-    if not result:
+    appointments, success = AppointmentsDbHelper.get_appointments()
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Error retrieving appointments")
+    
+    if not appointments:
         raise HTTPException(status_code=404, detail="No appointments found")
     
-    return result
+    return appointments
